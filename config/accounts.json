@@ -1,6 +1,12 @@
 [
   {
-    "username": "username_twitter_anda",
-    "password": "kata_sandi_twitter_anda"
+    "username": "twitter_user1",
+    "password": "password1",
+    "address": "0xAlamatWallet1"
+  },
+  {
+    "username": "twitter_user2",
+    "password": "password2",
+    "address": "0xAlamatWallet2"
   }
 ]
