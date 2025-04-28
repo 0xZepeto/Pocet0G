@@ -1,14 +1,17 @@
 const puppeteer = require('puppeteer');
 
 const loginTwitter = async (username, password) => {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'], // Tambahkan opsi ini
+  });
   const page = await browser.newPage();
 
   // Buka situs faucet dan mulai proses autentikasi Twitter
   await page.goto('https://faucet.0g.ai', { waitUntil: 'networkidle2' });
 
   // Klik tombol untuk autentikasi Twitter (sesuaikan selector berdasarkan situs)
-  await page.click('button[data-testid="twitter-auth-button"]'); // Ganti selector sesuai tombol di situs
+  await page.click('button[data-testid="twitter-auth-button"]');
   await page.waitForNavigation();
 
   // Masukkan username Twitter
