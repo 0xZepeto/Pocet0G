@@ -1,81 +1,47 @@
-const { loadAccounts, loadAddress, loadProxies, log } = require('./utils');
+require('dotenv').config();
 const { loginTwitter } = require('./config/twitterLogin');
-const { claimFaucet } = require('./config/faucet');
-const fs = require('fs');
-const path = require('path');
+const axios = require('axios');
+const anticaptcha = require('@antiadmin/anticaptchaofficial');
 
-// File untuk melacak akun yang sudah claim
-const claimedAccountsFile = path.join(__dirname, 'claimed_accounts.json');
+const accounts = require('./config/accounts.json');
+const proxies = require('./config/proxies.json');
 
-const loadClaimedAccounts = () => {
-  if (fs.existsSync(claimedAccountsFile)) {
-    return JSON.parse(fs.readFileSync(claimedAccountsFile, 'utf-8'));
-  }
-  return {};
-};
+anticaptcha.setAPIKey(process.env.ANTICAPTCHA_KEY);
 
-const saveClaimedAccounts = (claimedAccounts) => {
-  fs.writeFileSync(claimedAccountsFile, JSON.stringify(claimedAccounts, null, 2));
-};
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const main = async () => {
+const claimFaucet = async (oauthToken, oauthVerifier) => {
   try {
-    // Muat konfigurasi
-    const accounts = loadAccounts();
-    const walletAddress = loadAddress();
-    let proxies = loadProxies();
+    const response = await axios.post('https://api.0g.ai/faucet-claim', {
+      oauth_token: oauthToken,
+      oauth_verifier: oauthVerifier,
+    });
 
-    // Muat daftar akun yang sudah claim
-    const claimedAccounts = loadClaimedAccounts();
-    const today = new Date().toISOString().split('T')[0]; // Tanggal hari ini
-
-    // Jika tidak ada proxy, beri tahu pengguna
-    if (!proxies || proxies.length === 0) {
-      log('Tidak ada proxy yang ditemukan. 1 IP hanya bisa claim 1x sehari.');
-      proxies = [null]; // Tanpa proxy
-    }
-
-    for (const proxy of proxies) {
-      for (const account of accounts) {
-        const username = account.username;
-
-        // Periksa apakah akun sudah claim hari ini
-        if (claimedAccounts[username] === today) {
-          log(`Akun ${username} sudah claim hari ini. Lewati.`);
-          continue;
-        }
-
-        log(`Memproses akun: ${username}`);
-
-        // Login Twitter dan dapatkan token
-        const { oauthToken, oauthVerifier } = await loginTwitter(account.username, account.password);
-        log(`Berhasil mendapatkan oauth_token: ${oauthToken}`);
-
-        // Claim faucet
-        try {
-          const result = await claimFaucet(oauthToken, oauthVerifier, walletAddress, proxy);
-          log(`Claim berhasil untuk ${username}: ${JSON.stringify(result)}`);
-
-          // Tandai akun sebagai sudah claim
-          claimedAccounts[username] = today;
-          saveClaimedAccounts(claimedAccounts);
-        } catch (error) {
-          log(`Error untuk ${username}: ${error.message}`);
-          if (error.message.includes('IP atau akun Twitter sudah digunakan')) {
-            claimedAccounts[username] = today;
-            saveClaimedAccounts(claimedAccounts);
-          }
-        }
-
-        // Jika tanpa proxy, hentikan setelah 1 claim karena batasan IP
-        if (!proxy) break;
-      }
-      // Jika menggunakan proxy, lanjutkan ke proxy berikutnya
-      if (!proxy) break;
-    }
+    console.log('Claim response:', response.data);
   } catch (error) {
-    log(`Error utama: ${error.message}`);
+    console.error('Gagal claim faucet:', error.message);
   }
 };
 
-main();
+const run = async () => {
+  for (let i = 0; i < accounts.length; i++) {
+    const { username, password } = accounts[i];
+    const proxy = proxies[i] || null;
+
+    console.log(`\n[${i+1}] Login akun: ${username} menggunakan proxy: ${proxy || 'No proxy'}`);
+
+    try {
+      const { oauthToken, oauthVerifier } = await loginTwitter(username, password, proxy);
+
+      console.log(`[${i+1}] Login sukses, klaim faucet...`);
+      await claimFaucet(oauthToken, oauthVerifier);
+
+    } catch (error) {
+      console.error(`[${i+1}] Error:`, error.message);
+    }
+
+    await sleep(5000); // Delay antar akun biar aman
+  }
+};
+
+run();
